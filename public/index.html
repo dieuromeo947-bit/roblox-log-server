@@ -1,0 +1,350 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 20px;
+            background: #16213e;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+        
+        .stat-card .label {
+            color: #888;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .filters {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .filters input, .filters select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background: #1a1a2e;
+            color: #eee;
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .logs-table {
+            background: #16213e;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .logs-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .logs-table th {
+            background: #0f3460;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #4fc3f7;
+        }
+        
+        .logs-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #1a1a2e;
+            font-size: 0.9em;
+        }
+        
+        .logs-table tr:hover {
+            background: #1a1a3e;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .badge-error { background: #ef5350; color: white; }
+        .badge-warning { background: #ffa726; color: black; }
+        .badge-info { background: #42a5f5; color: white; }
+        .badge-output { background: #66bb6a; color: white; }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 16px;
+            background: #0f3460;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .pagination button:hover {
+            background: #1a4f8a;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #888;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #888;
+        }
+        
+        .auto-refresh input {
+            width: 50px;
+            padding: 5px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #eee;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Log Dashboard</h1>
+            <div class="auto-refresh">
+                <span>Auto-refresh:</span>
+                <input type="number" id="refreshInterval" value="5" min="0" max="60">
+                <span>s</span>
+                <button onclick="toggleAutoRefresh()" id="refreshBtn">⏸ Pause</button>
+                <button onclick="loadLogs()">🔄 Refresh</button>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="number" id="totalLogs">-</div>
+                <div class="label">Total Logs</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="errorCount">-</div>
+                <div class="label">Errors</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="warningCount">-</div>
+                <div class="label">Warnings</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="infoCount">-</div>
+                <div class="label">Info</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="🔍 Search messages..." oninput="loadLogs()">
+            <select id="typeFilter" onchange="loadLogs()">
+                <option value="">All Types</option>
+                <option value="Output">Output</option>
+                <option value="Info">Info</option>
+                <option value="Warning">Warning</option>
+                <option value="Error">Error</option>
+            </select>
+            <select id="levelFilter" onchange="loadLogs()">
+                <option value="">All Levels</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+            </select>
+            <input type="text" id="playerFilter" placeholder="Filter by player..." oninput="loadLogs()">
+            <button onclick="loadLogs()">Apply Filters</button>
+            <button onclick="clearFilters()">Clear</button>
+        </div>
+
+        <div class="logs-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Level</th>
+                        <th>Player</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody id="logsBody">
+                    <tr><td colspan="5" class="loading">Loading logs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="pagination">
+            <button onclick="changePage(-1)">◀ Previous</button>
+            <span id="pageInfo">Page 1</span>
+            <button onclick="changePage(1)">Next ▶</button>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 0;
+        const limit = 50;
+        let autoRefresh = true;
+        let refreshTimer = null;
+
+        async function loadLogs() {
+            const search = document.getElementById('searchInput').value;
+            const type = document.getElementById('typeFilter').value;
+            const level = document.getElementById('levelFilter').value;
+            const player = document.getElementById('playerFilter').value;
+
+            const params = new URLSearchParams({
+                limit: limit,
+                offset: currentPage * limit,
+                search: search,
+                type: type,
+                level: level,
+                player: player
+            });
+
+            try {
+                const response = await fetch(`/api/logs?${params}`);
+                const data = await response.json();
+                renderLogs(data);
+                loadStats();
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        function renderLogs(data) {
+            const tbody = document.getElementById('logsBody');
+            
+            if (!data.logs || data.logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:50px;color:#888;">No logs found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.logs.map(log => {
+                const date = new Date(log.timestamp);
+                const timeStr = date.toLocaleTimeString();
+                const levelClass = `badge-${log.level || 'info'}`;
+                
+                return `
+                    <tr>
+                        <td style="white-space:nowrap;">${timeStr}</td>
+                        <td><span class="badge badge-${log.type.toLowerCase()}">${log.type}</span></td>
+                        <td><span class="badge ${levelClass}">${log.level || 'info'}</span></td>
+                        <td>${log.player || 'Server'}</td>
+                        <td>${escapeHtml(log.message)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const totalPages = Math.ceil(data.total / limit);
+            document.getElementById('pageInfo').textContent = `Page ${currentPage + 1} of ${totalPages || 1}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                
+                document.getElementById('totalLogs').textContent = stats.total_logs || 0;
+                document.getElementById('errorCount').textContent = stats.error_count || 0;
+                document.getElementById('warningCount').textContent = stats.warning_count || 0;
+                document.getElementById('infoCount').textContent = stats.info_count || 0;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            if (currentPage < 0) currentPage = 0;
+            loadLogs();
+        }
+
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('typeFilter').value = '';
+            document.getElementById('levelFilter').value = '';
+            document.getElementById('playerFilter').value = '';
+            currentPage = 0;
+            loadLogs();
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            document.getElementById('refreshBtn').textContent = autoRefresh ? '⏸ Pause' : '▶ Play';
+            
+            if (autoRefresh) {
+                startAutoRefresh();
+            } else {
+                clearInterval(refreshTimer);
+            }
+        }
+
+        function startAutoRefresh() {
+            clearInterval(refreshTimer);
+            const interval = parseInt(document.getElementById('refreshInterval').value) || 5;
+            if (interval > 0) {
+                refreshTimer = setInterval(loadLogs, interval * 1000);
+            }
+        }
+
+        // Загрузка при старте
+        loadLogs();
+        startAutoRefresh();
+
+        // Обновление интервала при изменении
+        document.getElementById('refreshInterval').addEventListener('change', startAutoRefresh);
+    </script>
+</body>
+</html>
